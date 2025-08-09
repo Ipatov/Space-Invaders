@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="utf-8" />
   <title>Space Invaders</title>
   <style>
     body {
@@ -42,7 +43,7 @@
     let enemyImages = [
       createPlaceholderImage(40, 40, RED),    // тип 0 - слабый (1 попадание)
       createPlaceholderImage(40, 40, YELLOW), // тип 1 - средний (2 попадания)
-      createPlaceholderImage(40, 40, PURPLE) // тип 2 - сильный (3 попадания)
+      createPlaceholderImage(40, 40, PURPLE)  // тип 2 - сильный (3 попадания)
     ];
 
     loadImages();
@@ -73,12 +74,8 @@
               resolve(img);
             }
           };
-          
-          try {
-            img.src = `data/${name}`;
-          } catch (e) {
-            img.onerror();
-          }
+          img.onerror = function () { resolve(createPlaceholderImage(40, 40, RED)); };
+          img.src = `data/${name}`;
         });
       }
       
@@ -132,7 +129,9 @@
     let enemies = [];
     let enemyWidth = enemyImages[0].width;
     let enemyHeight = enemyImages[0].height;
-    let enemySpeed = 1;
+    let enemySpeed = 1;           // текущая скорость (будет меняться динамически)
+    let baseEnemySpeed = 1;       // базовая скорость уровня
+    let maxEnemies = 0;           // стартовое количество врагов в уровне
     const enemyDrop = 30;
     let enemyDirection = 1;
 
@@ -196,16 +195,17 @@
     // Создание врагов для текущего уровня
     function createEnemies() {
       const level = levels[currentLevel];
-      enemySpeed = level.speed;
+      baseEnemySpeed = level.speed; // сохраняем базовую скорость для уровня
+      enemySpeed = baseEnemySpeed;  // текущая скорость сбрасываем к базовой
       
-      const enemies = [];
+      const enemiesList = [];
       for (let row = 0; row < level.layout.length; row++) {
         for (let col = 0; col < level.layout[row].length; col++) {
           const enemyType = level.layout[row][col];
           if (enemyType !== undefined) {
             const enemyX = 100 + col * 60;
             const enemyY = 50 + row * 50;
-            enemies.push({
+            enemiesList.push({
               x: enemyX,
               y: enemyY,
               type: enemyType,
@@ -215,7 +215,8 @@
           }
         }
       }
-      return enemies;
+      maxEnemies = enemiesList.length; // сохраняем стартовое количество врагов
+      return enemiesList;
     }
 
     enemies = createEnemies();
@@ -280,6 +281,12 @@
           if (bullets[i][1] < 0) {
             bullets.splice(i, 1);
           }
+        }
+
+        // Чем меньше врагов осталось, тем выше скорость их движения
+        if (enemies.length > 0) {
+          const speedFactor = Math.min(2, maxEnemies / (enemies.length * 2)); // 1.0 вначале, растёт по мере убийства врагов, но не меньше 0.5
+          enemySpeed = baseEnemySpeed * speedFactor;
         }
 
         // Движение врагов
