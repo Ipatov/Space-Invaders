@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Space Invaders</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    canvas {
+      border: 1px solid #333;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    const BLACK = '#000000';
+    const WHITE = '#FFFFFF';
+    const GREEN = '#00FF00';
+    const RED = '#FF0000';
+    const BLUE = '#0000FF';
+
+    // заглушки, пока не загружены картинки
+    let playerImg = createPlaceholderImage(40, 40, GREEN);
+    let enemyImg = createPlaceholderImage(40, 40, RED);
+    let bulletImg = createPlaceholderImage(5, 15, BLUE);
+
+    loadImages();
+
+    function createPlaceholderImage(width, height, color) {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, width, height);
+      return canvas;
+    }
+
+    function loadImages() {
+      function loadImage(name, scale = 1) {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = function () {
+            if (scale !== 1) {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.width * scale;
+              canvas.height = img.height * scale;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              resolve(canvas);
+            } else {
+              resolve(img);
+            }
+          };
+          
+          try {
+            img.src = `data/${name}`;
+          } catch (e) {
+            img.onerror();
+          }
+        });
+      }
+      
+      Promise.all([
+        loadImage("player.png", 1),
+        loadImage("enemy.png", 1),
+        loadImage("bullet.png", 1)
+      ]).then(([player, enemy, bullet]) => {
+        playerImg = player;
+        enemyImg = enemy;
+        bulletImg = bullet;
+        
+        playerWidth = playerImg.width;
+        playerHeight = playerImg.height;
+        bulletWidth = bulletImg.width;
+        bulletHeight = bulletImg.height;
+        enemyWidth = enemyImg.width;
+        enemyHeight = enemyImg.height;
+        
+        playerX = canvas.width / 2 - playerWidth / 2;
+      }).catch(err => {
+        console.error(err);
+      });
+    }
+
+    function scaleImage(image, scale) {
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = image.width * scale;
+      tempCanvas.height = image.height * scale;
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCtx.drawImage(image, 0, 0, tempCanvas.width, tempCanvas.height);
+      return tempCanvas;
+    }
+
+    // Игрок
+    const playerWidth = playerImg.width;
+    const playerHeight = playerImg.height;
+    let playerX = canvas.width / 2 - playerWidth / 2;
+    const playerY = canvas.height - playerHeight - 20;
+    const playerSpeed = 5;
+
+    // Пули
+    let bullets = [];
+    const bulletSpeed = 7;
+    const bulletWidth = bulletImg.width;
+    const bulletHeight = bulletImg.height;
+
+    // Враги
+    let enemies = [];
+    const enemyWidth = enemyImg.width;
+    const enemyHeight = enemyImg.height;
+    let enemySpeed = 2;
+    const enemyDrop = 30;
+    let enemyDirection = 1;
+
+    // Создание врагов
+    function createEnemies() {
+      const enemies = [];
+      for (let row = 0; row < 5; row++) {
+        for (let col = 0; col < 10; col++) {
+          const enemyX = 100 + col * 60;
+          const enemyY = 50 + row * 50;
+          enemies.push([enemyX, enemyY]);
+        }
+      }
+      return enemies;
+    }
+
+    enemies = createEnemies();
+
+    // Счет и состояние игры
+    let score = 0;
+    let lives = 3;
+    let gameOver = false;
+    let gameWon = false;
+    const font = '20px Arial';
+    const bigFont = '50px Arial';
+
+    // Обработка клавиш
+    const keys = {
+      left: false,
+      right: false,
+      space: false,
+      r: false
+    };
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') keys.left = true;
+      if (e.key === 'ArrowRight') keys.right = true;
+      if (e.key === ' ') keys.space = true;
+      if (e.key.toLowerCase() === 'r') keys.r = true;
+    });
+
+    document.addEventListener('keyup', (e) => {
+      if (e.key === 'ArrowLeft') keys.left = false;
+      if (e.key === 'ArrowRight') keys.right = false;
+      if (e.key === ' ') keys.space = false;
+      if (e.key.toLowerCase() === 'r') keys.r = false;
+    });
+    
+    function gameLoop() {
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function update() {
+      if (!gameOver && !gameWon) {
+        // Движение игрока
+        if (keys.left && playerX > 0) {
+          playerX -= playerSpeed;
+        }
+        if (keys.right && playerX < canvas.width - playerWidth) {
+          playerX += playerSpeed;
+        }
+
+        // Стрельба
+        if (keys.space) {
+          keys.space = false; // Чтобы не было непрерывного выстрела
+          const bulletX = playerX + (playerWidth - bulletWidth) / 2;
+          const bulletY = playerY;
+          bullets.push([bulletX, bulletY]);
+        }
+
+        // Движение пуль
+        for (let i = bullets.length - 1; i >= 0; i--) {
+          bullets[i][1] -= bulletSpeed;
+          if (bullets[i][1] < 0) {
+            bullets.splice(i, 1);
+          }
+        }
+
+        // Движение врагов
+        let moveDown = false;
+        for (const enemy of enemies) {
+          enemy[0] += enemySpeed * enemyDirection;
+
+          // Проверка достижения границы
+          if (enemy[0] <= 0 || enemy[0] >= canvas.width - enemyWidth) {
+            moveDown = true;
+          }
+        }
+
+        if (moveDown) {
+          enemyDirection *= -1;
+          for (const enemy of enemies) {
+            enemy[1] += enemyDrop;
+          }
+        }
+
+        // Проверка столкновений пуль с врагами
+        for (let i = bullets.length - 1; i >= 0; i--) {
+          const bullet = bullets[i];
+          for (let j = enemies.length - 1; j >= 0; j--) {
+            const enemy = enemies[j];
+            if (bullet[0] > enemy[0] && bullet[0] < enemy[0] + enemyWidth &&
+              bullet[1] > enemy[1] && bullet[1] < enemy[1] + enemyHeight) {
+              bullets.splice(i, 1);
+              enemies.splice(j, 1);
+              score += 10;
+              break;
+            }
+          }
+        }
+
+        // Проверка поражения
+        for (const enemy of enemies) {
+          if (enemy[1] > canvas.height - 100) {
+            lives--;
+            if (lives <= 0) {
+              gameOver = true;
+            } else {
+              enemies = createEnemies();
+              bullets = [];
+              playerX = canvas.width / 2 - playerWidth / 2;
+            }
+            break;
+          }
+        }
+
+        // Проверка победы
+        if (enemies.length === 0) {
+          gameWon = true;
+        }
+      }
+
+      // Рестарт 
+      if ((gameOver || gameWon) && keys.r) {
+        keys.r = false;
+        enemies = createEnemies();
+        bullets = [];
+        playerX = canvas.width / 2 - playerWidth / 2;
+        score = 0;
+        lives = 3;
+        gameOver = false;
+        gameWon = false;
+      }
+    }
+
+    function draw() {
+      ctx.fillStyle = BLACK;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Игрок
+      ctx.drawImage(playerImg, playerX, playerY);
+
+      // Пули
+      for (const bullet of bullets) {
+        ctx.drawImage(bulletImg, bullet[0], bullet[1]);
+      }
+
+      // Враги
+      for (const enemy of enemies) {
+        ctx.drawImage(enemyImg, enemy[0], enemy[1]);
+      }
+
+      // Счет и жизни
+      ctx.fillStyle = WHITE;
+      ctx.font = font;
+      ctx.fillText(`Score: ${score}`, 10, 30);
+      ctx.fillText(`Lives: ${lives}`, canvas.width - 120, 30);
+
+      // Сообщения о победе/поражении
+      if (gameOver) {
+        ctx.fillStyle = RED;
+        ctx.font = bigFont;
+        const gameOverText = "GAME OVER";
+        ctx.fillText(gameOverText, canvas.width / 2 - ctx.measureText(gameOverText).width / 2,
+          canvas.height / 2 - 25);
+
+        ctx.fillStyle = WHITE;
+        ctx.font = font;
+        const restartText = "Press R to restart";
+        ctx.fillText(restartText, canvas.width / 2 - ctx.measureText(restartText).width / 2,
+          canvas.height / 2 + 50);
+      }
+
+      if (gameWon) {
+        ctx.fillStyle = GREEN;
+        ctx.font = bigFont;
+        const gameWonText = "YOU WIN!";
+        ctx.fillText(gameWonText, canvas.width / 2 - ctx.measureText(gameWonText).width / 2,
+          canvas.height / 2 - 25);
+
+        ctx.fillStyle = WHITE;
+        ctx.font = font;
+        const restartText = "Press R to restart";
+        ctx.fillText(restartText, canvas.width / 2 - ctx.measureText(restartText).width / 2,
+          canvas.height / 2 + 50);
+      }
+    }
+
+    gameLoop();
+  </script>
+</body>
+</html>
