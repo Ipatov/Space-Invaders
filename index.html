@@ -116,8 +116,8 @@
     }
 
     // Игрок
-    const playerWidth = playerImg.width;
-    const playerHeight = playerImg.height;
+    let playerWidth = playerImg.width;
+    let playerHeight = playerImg.height;
     let playerX = canvas.width / 2 - playerWidth / 2;
     const playerY = canvas.height - playerHeight - 20;
     const playerSpeed = 5;
@@ -125,13 +125,13 @@
     // Пули
     let bullets = [];
     const bulletSpeed = 7;
-    const bulletWidth = bulletImg.width;
-    const bulletHeight = bulletImg.height;
+    let bulletWidth = bulletImg.width;
+    let bulletHeight = bulletImg.height;
 
     // Враги
     let enemies = [];
-    const enemyWidth = enemyImages[0].width;
-    const enemyHeight = enemyImages[0].height;
+    let enemyWidth = enemyImages[0].width;
+    let enemyHeight = enemyImages[0].height;
     let enemySpeed = 1;
     const enemyDrop = 30;
     let enemyDirection = 1;
@@ -161,7 +161,7 @@
         speed: 2,
         layout: [
           [2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
-          [2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+          [2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
           [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
           [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
           [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
