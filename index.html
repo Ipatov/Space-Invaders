@@ -31,11 +31,19 @@
     const GREEN = '#00FF00';
     const RED = '#FF0000';
     const BLUE = '#0000FF';
+    const YELLOW = '#FFFF00';
+    const PURPLE = '#800080';
 
-    // заглушки, пока не загружены картинки
+    // Заглушки для изображений
     let playerImg = createPlaceholderImage(40, 40, GREEN);
-    let enemyImg = createPlaceholderImage(40, 40, RED);
     let bulletImg = createPlaceholderImage(5, 15, BLUE);
+    
+    // Разные типы врагов
+    let enemyImages = [
+      createPlaceholderImage(40, 40, RED),    // тип 0 - слабый (1 попадание)
+      createPlaceholderImage(40, 40, YELLOW), // тип 1 - средний (2 попадания)
+      createPlaceholderImage(40, 40, PURPLE) // тип 2 - сильный (3 попадания)
+    ];
 
     loadImages();
 
@@ -76,19 +84,21 @@
       
       Promise.all([
         loadImage("player.png", 1),
-        loadImage("enemy.png", 1),
-        loadImage("bullet.png", 1)
-      ]).then(([player, enemy, bullet]) => {
+        loadImage("bullet.png", 1),
+        loadImage("enemy1.png", 1),
+        loadImage("enemy2.png", 1),
+        loadImage("enemy3.png", 1)
+      ]).then(([player, bullet, enemy1, enemy2, enemy3]) => {
         playerImg = player;
-        enemyImg = enemy;
         bulletImg = bullet;
+        enemyImages = [enemy1, enemy2, enemy3];
         
         playerWidth = playerImg.width;
         playerHeight = playerImg.height;
         bulletWidth = bulletImg.width;
         bulletHeight = bulletImg.height;
-        enemyWidth = enemyImg.width;
-        enemyHeight = enemyImg.height;
+        enemyWidth = enemyImages[0].width;
+        enemyHeight = enemyImages[0].height;
         
         playerX = canvas.width / 2 - playerWidth / 2;
       }).catch(err => {
@@ -120,20 +130,89 @@
 
     // Враги
     let enemies = [];
-    const enemyWidth = enemyImg.width;
-    const enemyHeight = enemyImg.height;
-    let enemySpeed = 2;
+    const enemyWidth = enemyImages[0].width;
+    const enemyHeight = enemyImages[0].height;
+    let enemySpeed = 1;
     const enemyDrop = 30;
     let enemyDirection = 1;
 
-    // Создание врагов
+    // Уровни
+    const levels = [
+      {
+        speed: 1,
+        layout: [
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ]
+      },
+      {
+        speed: 1.5,
+        layout: [
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ]
+      },
+      {
+        speed: 2,
+        layout: [
+          [2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+          [2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ]
+      },
+      {
+        speed: 2.5,
+        layout: [
+          [2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+          [2, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+          [2, 1, 0, 0, 0, 0, 0, 0, 1, 2],
+          [2, 1, 1, 1, 1, 1, 1, 1, 1, 2]
+        ]
+      },
+      {
+        speed: 3,
+        layout: [
+          [2, 1, 2, 1, 2, 1, 2, 1, 2, 1],
+          [1, 2, 1, 2, 1, 2, 1, 2, 1, 2],
+          [2, 1, 2, 1, 2, 1, 2, 1, 2, 1],
+          [1, 2, 1, 2, 1, 2, 1, 2, 1, 2],
+          [2, 1, 2, 1, 2, 1, 2, 1, 2, 1]
+        ]
+      }
+    ];
+    
+    let currentLevel = 0;
+    let levelComplete = false;
+    let levelStartTime = 0;
+    const levelTransitionTime = 2000;
+
+    // Создание врагов для текущего уровня
     function createEnemies() {
+      const level = levels[currentLevel];
+      enemySpeed = level.speed;
+      
       const enemies = [];
-      for (let row = 0; row < 5; row++) {
-        for (let col = 0; col < 10; col++) {
-          const enemyX = 100 + col * 60;
-          const enemyY = 50 + row * 50;
-          enemies.push([enemyX, enemyY]);
+      for (let row = 0; row < level.layout.length; row++) {
+        for (let col = 0; col < level.layout[row].length; col++) {
+          const enemyType = level.layout[row][col];
+          if (enemyType !== undefined) {
+            const enemyX = 100 + col * 60;
+            const enemyY = 50 + row * 50;
+            enemies.push({
+              x: enemyX,
+              y: enemyY,
+              type: enemyType,
+              hits: 0,
+              hitsRequired: enemyType + 1 // тип 0 требует 1 попадание, тип 1 - 2 и т.д.
+            });
+          }
         }
       }
       return enemies;
@@ -178,7 +257,7 @@
     }
 
     function update() {
-      if (!gameOver && !gameWon) {
+      if (!gameOver && !gameWon && !levelComplete) {
         // Движение игрока
         if (keys.left && playerX > 0) {
           playerX -= playerSpeed;
@@ -206,10 +285,10 @@
         // Движение врагов
         let moveDown = false;
         for (const enemy of enemies) {
-          enemy[0] += enemySpeed * enemyDirection;
+          enemy.x += enemySpeed * enemyDirection;
 
           // Проверка достижения границы
-          if (enemy[0] <= 0 || enemy[0] >= canvas.width - enemyWidth) {
+          if (enemy.x <= 0 || enemy.x >= canvas.width - enemyWidth) {
             moveDown = true;
           }
         }
@@ -217,7 +296,7 @@
         if (moveDown) {
           enemyDirection *= -1;
           for (const enemy of enemies) {
-            enemy[1] += enemyDrop;
+            enemy.y += enemyDrop;
           }
         }
 
@@ -226,11 +305,16 @@
           const bullet = bullets[i];
           for (let j = enemies.length - 1; j >= 0; j--) {
             const enemy = enemies[j];
-            if (bullet[0] > enemy[0] && bullet[0] < enemy[0] + enemyWidth &&
-              bullet[1] > enemy[1] && bullet[1] < enemy[1] + enemyHeight) {
+            if (bullet[0] > enemy.x && bullet[0] < enemy.x + enemyWidth &&
+                bullet[1] > enemy.y && bullet[1] < enemy.y + enemyHeight) {
               bullets.splice(i, 1);
-              enemies.splice(j, 1);
-              score += 10;
+              enemy.hits++;
+              
+              if (enemy.hits >= enemy.hitsRequired) {
+                // Уничтожение врага
+                score += 10 * (enemy.type + 1); // больше очков за сильных врагов
+                enemies.splice(j, 1);
+              }
               break;
             }
           }
@@ -238,7 +322,7 @@
 
         // Проверка поражения
         for (const enemy of enemies) {
-          if (enemy[1] > canvas.height - 100) {
+          if (enemy.y > canvas.height - 100) {
             lives--;
             if (lives <= 0) {
               gameOver = true;
@@ -251,15 +335,31 @@
           }
         }
 
-        // Проверка победы
+        // Проверка завершения уровня
         if (enemies.length === 0) {
-          gameWon = true;
+          levelComplete = true;
+          levelStartTime = Date.now();
+          
+          // Проверка завершения игры (последний уровень)
+          if (currentLevel >= levels.length - 1) {
+            gameWon = true;
+          }
         }
+      }
+      
+      // Переход на следующий уровень
+      if (levelComplete && !gameWon && Date.now() - levelStartTime > levelTransitionTime) {
+        currentLevel++;
+        enemies = createEnemies();
+        bullets = [];
+        playerX = canvas.width / 2 - playerWidth / 2;
+        levelComplete = false;
       }
 
       // Рестарт 
       if ((gameOver || gameWon) && keys.r) {
         keys.r = false;
+        currentLevel = 0;
         enemies = createEnemies();
         bullets = [];
         playerX = canvas.width / 2 - playerWidth / 2;
@@ -267,6 +367,7 @@
         lives = 3;
         gameOver = false;
         gameWon = false;
+        levelComplete = false;
       }
     }
 
@@ -284,7 +385,14 @@
 
       // Враги
       for (const enemy of enemies) {
-        ctx.drawImage(enemyImg, enemy[0], enemy[1]);
+        ctx.drawImage(enemyImages[enemy.type], enemy.x, enemy.y);
+        
+        // Отображение здоровья для врагов, требующих более 1 попадания
+        if (enemy.hitsRequired > 1) {
+          ctx.fillStyle = WHITE;
+          ctx.font = '12px Arial';
+          ctx.fillText(`${enemy.hitsRequired - enemy.hits}`, enemy.x + enemyWidth/2 - 5, enemy.y + enemyHeight + 15);
+        }
       }
 
       // Счет и жизни
@@ -292,6 +400,16 @@
       ctx.font = font;
       ctx.fillText(`Score: ${score}`, 10, 30);
       ctx.fillText(`Lives: ${lives}`, canvas.width - 120, 30);
+      ctx.fillText(`Level: ${currentLevel + 1}/${levels.length}`, canvas.width / 2 - 50, 30);
+
+      // Сообщение о переходе на следующий уровень
+      if (levelComplete && !gameWon) {
+        ctx.fillStyle = YELLOW;
+        ctx.font = bigFont;
+        const levelText = `LEVEL ${currentLevel + 2}`;
+        ctx.fillText(levelText, canvas.width / 2 - ctx.measureText(levelText).width / 2,
+          canvas.height / 2);
+      }
 
       // Сообщения о победе/поражении
       if (gameOver) {
